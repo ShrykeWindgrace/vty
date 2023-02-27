@@ -51,9 +51,6 @@ import Foreign.C.Types (CInt(..))
 import Foreign.Ptr (Ptr, castPtr)
 
 import System.IO
-import System.Posix.IO (fdReadBuf, setFdOption, FdOption(..))
-import System.Posix.Types (Fd(..))
-
 import Text.Printf (hPrintf)
 
 data Input = Input
@@ -144,8 +141,9 @@ readFromDevice = do
         -- interrupted prior to the foreign call. If there is input on
         -- the FD then the fdReadBuf will return in a finite amount of
         -- time due to the vtime terminal setting.
-        threadWaitRead fd
-        bytesRead <- fdReadBuf fd bufferPtr (fromIntegral maxBytes)
+        
+        hWaitForInput fd 100 -- do we need that? 100 is default vtime; what to do with return value? maybe replace with vtime?
+        bytesRead <- hGetBufNonBlocking fd bufferPtr (fromIntegral maxBytes) -- requires ghc >= 9.4.2
         if bytesRead > 0
         then BS.packCStringLen (castPtr bufferPtr, fromIntegral bytesRead)
         else return BS.empty
@@ -153,9 +151,9 @@ readFromDevice = do
         logMsg $ "input bytes: " ++ show (BS8.unpack stringRep)
     return stringRep
 
-applyConfig :: Fd -> Config -> IO ()
+applyConfig :: Handle -> Config -> IO ()
 applyConfig fd (Config{ vmin = Just theVmin, vtime = Just theVtime })
-    = setTermTiming fd theVmin (theVtime `div` 100)
+    = pure () -- setTermTiming fd theVmin (theVtime `div` 100) -- I trust that timings in WT are correct and I do not know how to change them
 applyConfig _ _ = fail "(vty) applyConfig was not provided a complete configuration"
 
 parseEvent :: InputM Event
@@ -218,7 +216,7 @@ logInitialInputState input classifyTable = case _inputDebug input of
 initInput :: Config -> ClassifyMap -> IO Input
 initInput config classifyTable = do
     let Just fd = inputFd config
-    setFdOption fd NonBlockingRead False
+    -- setFdOption fd NonBlockingRead False -- todo: deal with it later Is there a windows equivalent?
     applyConfig fd config
     stopSync <- newEmptyMVar
     input <- Input <$> atomically newTChan
@@ -236,7 +234,6 @@ initInput config classifyTable = do
           takeMVar stopSync
     return $ input { shutdownInput = killAndWait }
 
-foreign import ccall "vty_set_term_timing" setTermTiming :: Fd -> Int -> Int -> IO ()
 
 forkOSFinally :: IO a -> (Either SomeException a -> IO ()) -> IO ThreadId
 forkOSFinally action and_then =
