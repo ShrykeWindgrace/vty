@@ -54,10 +54,9 @@ library
                        mtl >= 1.1.1.0 && < 2.4,
                        parsec >= 2 && < 4,
                        stm,
-                       terminfo >= 0.3 && < 0.5,
                        transformers >= 0.3.0.0,
                        text >= 0.11.3,
-                       unix,
+                       Win32,
                        utf8-string >= 0.3 && < 1.1,
                        vector >= 0.7,
                        binary,
@@ -98,16 +97,13 @@ library
                        Graphics.Vty.Span
                        Graphics.Vty.Output.Mock
                        Graphics.Vty.Output.Interface
-                       Graphics.Vty.Output.XTermColor
-                       Graphics.Vty.Output.TerminfoBased
+                       Graphics.Vty.Output.Conhost
                        Graphics.Vty.UnicodeWidthTable.Types
                        Graphics.Vty.UnicodeWidthTable.IO
                        Graphics.Vty.UnicodeWidthTable.Query
                        Graphics.Vty.UnicodeWidthTable.Install
   other-modules:       Graphics.Vty.Input.Terminfo.ANSIVT
-  c-sources:           cbits/gwinsz.c
-                       cbits/set_term_timing.c
-                       cbits/get_tty_erase.c
+  c-sources:
                        cbits/mk_wcwidth.c
 
 executable vty-build-width-table
