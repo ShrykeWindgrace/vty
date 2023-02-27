@@ -32,8 +32,7 @@ import Control.Monad (when)
 import Graphics.Vty.Config
 import Graphics.Vty.Image (regionWidth, regionHeight)
 import Graphics.Vty.Output.Interface
-import Graphics.Vty.Output.XTermColor as XTermColor
-import Graphics.Vty.Output.TerminfoBased as TerminfoBased
+import Graphics.Vty.Output.Conhost
 
 import Blaze.ByteString.Builder (writeToByteString)
 
@@ -60,10 +59,7 @@ import Data.Monoid ((<>))
 outputForConfig :: Config -> IO Output
 outputForConfig Config{ outputFd = Just fd, termName = Just termName
                       , colorMode = Just colorMode, .. } = do
-    t <- if isXtermLike termName
-         then XTermColor.reserveTerminal termName fd colorMode
-         -- Not an xterm-like terminal. try for generic terminfo.
-         else TerminfoBased.reserveTerminal termName fd colorMode
+    t <- reserveTerminal termName fd colorMode
 
     case mouseMode of
         Just s -> setMode t Mouse s
