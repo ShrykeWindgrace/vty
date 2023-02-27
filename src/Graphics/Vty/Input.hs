@@ -130,11 +130,10 @@ import Graphics.Vty.Input.Terminfo
 import Control.Concurrent.STM
 import Lens.Micro
 
-import qualified System.Console.Terminfo as Terminfo
-import System.Posix.Signals.Exts
-import System.Posix.Terminal
-import System.Posix.Types (Fd(..))
-
+import System.IO (Handle)
+import System.Win32.Console
+import System.Win32.Types
+import Data.Bits
 #if !MIN_VERSION_base(4,11,0)
 import Data.Monoid ((<>))
 #endif
@@ -154,25 +153,30 @@ inputForConfig config@Config{ termName = Just termName
                             , vmin = Just _
                             , vtime = Just _
                             , .. } = do
-    terminal <- Terminfo.setupTerm termName
     let inputOverrides = [(s,e) | (t,s,e) <- inputMap, t == Nothing || t == Just termName]
-        activeInputMap = classifyMapForTerm termName terminal `mappend` inputOverrides
+        activeInputMap = classifyMapForTerm termName {- terminal -} `mappend` inputOverrides
     (setAttrs, unsetAttrs) <- attributeControl termFd
     setAttrs
     input <- initInput config activeInputMap
+    {-
+    -- Skip this for now
     let pokeIO = Catch $ do
             setAttrs
             atomically $ writeTChan (input^.eventChannel) ResumeAfterSignal
     _ <- installHandler windowChange pokeIO Nothing
     _ <- installHandler continueProcess pokeIO Nothing
+    -}
 
     let restore = unsetAttrs
 
     return $ input
         { shutdownInput = do
             shutdownInput input
+            {-
+            -- Skip this for now
             _ <- installHandler windowChange Ignore Nothing
             _ <- installHandler continueProcess Ignore Nothing
+            -}
             restore
         , restoreInputState = restoreInputState input >> restore
         }
@@ -203,9 +207,20 @@ inputForConfig config = (<> config) <$> standardIOConfig >>= inputForConfig
 -- The configuration action also explicitly sets these flags:
 --
 -- * ICRNL (input carriage returns are mapped to newlines)
-attributeControl :: Fd -> IO (IO (), IO ())
-attributeControl fd = do
-    original <- getTerminalAttributes fd
+
+-- Conhost:
+-- these flags are the bare minimum that make VTY work at all
+-- we might want to experiment with ENABLE_WINDOW_INPUT
+-- I have my doubts about ENABLE_PROCESSED_INPUT, I am inclined to leave it disabled
+-- to my understanding, this function is only called on stdin, hence we might need to tweak stdout's flags
+--   in a separate function
+attributeControl :: Handle -> IO (IO (), IO ())
+attributeControl fd =
+    withHandleToHANDLE fd $ \wh -> do
+        mode <- getConsoleMode wh
+        pure (setConsoleMode wh $ eNABLE_MOUSE_INPUT .|. eNABLE_EXTENDED_FLAGS .|. eNABLE_VIRTUAL_TERMINAL_INPUT,
+             setConsoleMode wh mode)
+    {- original <- getTerminalAttributes fd
     let vtyMode = foldl withMode clearedFlags flagsToSet
         clearedFlags = foldl withoutMode original flagsToUnset
         flagsToSet = [ MapCRtoLF -- ICRNL
@@ -218,4 +233,4 @@ attributeControl fd = do
                        ]
     let setAttrs = setTerminalAttributes fd vtyMode Immediately
         unsetAttrs = setTerminalAttributes fd original Immediately
-    return (setAttrs, unsetAttrs)
+    return (setAttrs, unsetAttrs)-}
