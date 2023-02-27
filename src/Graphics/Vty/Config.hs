@@ -132,13 +132,13 @@ import System.Directory ( getAppUserDataDirectory, doesFileExist
                         )
 import System.Environment (lookupEnv)
 import System.FilePath ((</>), takeDirectory)
-import System.Posix.IO (stdInput, stdOutput)
 import System.Posix.Types (Fd(..))
 import Foreign.C.Types (CInt(..), CChar(..))
 
 import Text.Parsec hiding ((<|>))
 import Text.Parsec.Token ( GenLanguageDef(..) )
 import qualified Text.Parsec.Token as P
+import System.IO ( Handle, stdin, stdout )
 
 -- | Type of errors that can be thrown when configuring VTY
 data VtyConfigurationError =
@@ -173,12 +173,12 @@ data Config =
            --
            -- See "Graphics.Vty.Config" module documentation for
            -- documentation of the @map@ directive.
-           , inputFd :: Maybe Fd
+           , inputFd :: Maybe Handle
            -- ^ The input file descriptor to use. The default is
-           -- 'System.Posix.IO.stdInput'
-           , outputFd :: Maybe Fd
+           -- 'System.IO.stdin'
+           , outputFd :: Maybe Handle
            -- ^ The output file descriptor to use. The default is
-           -- 'System.Posix.IO.stdOutput'
+           -- 'System.Posix.stdout'
            , termName :: Maybe String
            -- ^ The terminal name used to look up terminfo capabilities.
            -- The default is the value of the TERM environment variable.
@@ -287,19 +287,15 @@ overrideEnvConfig = do
 -- | Configures VTY using defaults suitable for terminals. This function
 -- can raise 'VtyConfigurationError'.
 standardIOConfig :: IO Config
-standardIOConfig = do
-    mb <- lookupEnv termVariable
-    case mb of
-      Nothing -> throwIO VtyMissingTermEnvVar
-      Just t -> do
+standardIOConfig = let t = "conhost" in do
         mcolorMode <- detectColorMode t
         return defaultConfig
           { vmin               = Just 1
-          , mouseMode          = Just False
+          , mouseMode          = Just True -- can be programmatically queried
           , bracketedPasteMode = Just False
-          , vtime              = Just 100
-          , inputFd            = Just stdInput
-          , outputFd           = Just stdOutput
+          , vtime              = Just 50
+          , inputFd            = Just stdin
+          , outputFd           = Just stdout
           , termName           = Just t
           , colorMode          = Just mcolorMode
           }
@@ -413,7 +409,6 @@ instance (GParseAlts f, GParseAlts g) => GParseAlts (f :+: g) where
 
 instance GParseAlts V1 where gparseAlts _ = fail "GParse: V1"
 
-foreign import ccall "vty_get_tty_erase" cGetTtyErase :: Fd -> IO CChar
 
 -- | Get the "erase" character for the terminal attached to the
 -- specified file descriptor. This is the character configured by 'stty
@@ -427,12 +422,14 @@ foreign import ccall "vty_get_tty_erase" cGetTtyErase :: Fd -> IO CChar
 -- * https://www.gnu.org/software/libc/manual/html_node/Canonical-or-Not.html
 -- * https://www.gsp.com/cgi-bin/man.cgi?section=1&topic=stty
 -- * https://github.com/matterhorn-chat/matterhorn/issues/565
+
+-- conhost: I do not know the windows equivalent of this char
 getTtyEraseChar :: Fd -> IO (Maybe Char)
-getTtyEraseChar fd = do
-    c <- cGetTtyErase fd
-    if c /= 0
-       then return $ Just $ toEnum $ fromEnum c
-       else return Nothing
+getTtyEraseChar fd = pure Nothing
+    -- c <- cGetTtyErase fd
+    -- if c /= 0
+    --    then return $ Just $ toEnum $ fromEnum c
+    --    else return Nothing
 
 data ConfigUpdateResult =
     ConfigurationCreated
