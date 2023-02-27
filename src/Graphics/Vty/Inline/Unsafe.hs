@@ -16,8 +16,6 @@ import System.IO (stdin, stdout, hSetBuffering, BufferMode(NoBuffering))
 
 import System.IO.Unsafe
 
-import System.Posix.IO (handleToFd)
-
 globalVty :: IORef (Maybe Vty)
 {-# NOINLINE globalVty #-}
 globalVty = unsafePerformIO $ newIORef Nothing
@@ -30,8 +28,8 @@ mkDupeConfig :: IO Config
 mkDupeConfig = do
     hSetBuffering stdout NoBuffering
     hSetBuffering stdin NoBuffering
-    stdinDupe <- hDuplicate stdin >>= handleToFd
-    stdoutDupe <- hDuplicate stdout >>= handleToFd
+    stdinDupe <- hDuplicate stdin
+    stdoutDupe <- hDuplicate stdout
     return $ defaultConfig { inputFd = Just stdinDupe, outputFd = Just stdoutDupe }
 
 -- | This will create a Vty instance using 'mkVty' and execute an IO
