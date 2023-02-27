@@ -13,7 +13,6 @@ import Graphics.Vty.Input.Events
 import qualified Graphics.Vty.Input.Terminfo.ANSIVT as ANSIVT
 
 import Control.Arrow
-import System.Console.Terminfo
 
 -- | Queries the terminal for all capability-based input sequences and
 -- then adds on a terminal-dependent input sequence mapping.
@@ -41,9 +40,9 @@ import System.Console.Terminfo
 -- 3. Add internally-defined table for given terminal type.
 --
 -- Precedence is currently implicit in the 'compile' algorithm.
-classifyMapForTerm :: String -> Terminal -> ClassifyMap
-classifyMapForTerm termName term =
-    concat $ capsClassifyMap term keysFromCapsTable
+classifyMapForTerm :: String -> ClassifyMap
+classifyMapForTerm termName  =
+    concat $ capsClassifyMap keysFromCapsTable
            : universalTable
            : termSpecificTables termName
 
@@ -54,9 +53,11 @@ classifyMapForTerm termName term =
 universalTable :: ClassifyMap
 universalTable = concat [visibleChars, ctrlChars, ctrlMetaChars, specialSupportKeys]
 
-capsClassifyMap :: Terminal -> [(String,Event)] -> ClassifyMap
-capsClassifyMap terminal table = [(x,y) | (Just x,y) <- map extractCap table]
-    where extractCap = first (getCapability terminal . tiGetStr)
+capsClassifyMap :: [(String,Event)] -> ClassifyMap
+capsClassifyMap table = []
+    -- I simpy do not know what these functions do
+    -- todo:fixme  [(x,y) | (Just x,y) <- map extractCap table]
+    -- where extractCap = first (getCapability terminal . tiGetStr)
 
 -- | Tables specific to a given terminal that are not derivable from
 -- terminfo.
