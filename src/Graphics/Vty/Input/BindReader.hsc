@@ -111,6 +111,6 @@ peekEvent pRecord = do
 usefulEvent :: InputEvent -> Maybe Char
 usefulEvent (KeyEvent {..})
     | keyDown && unicodeChar == '\NUL' = Nothing
-    | keyDown && unicodeChar /= '\NUL' = Just unicodeChar
+    | keyDown && unicodeChar /= '\NUL' && virtualScanCode == 0 = Just unicodeChar
     | otherwise = Nothing
 usefulEvent _ = Nothing -- for now, let it compile
