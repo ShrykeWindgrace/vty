@@ -34,7 +34,7 @@ import Control.Exception (mask, try, SomeException)
 import Lens.Micro hiding ((<>~))
 import Lens.Micro.Mtl
 import Lens.Micro.TH
-import Control.Monad (when, mzero, forM_)
+import Control.Monad (when, mzero, forM_, unless)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.State (StateT(..), evalStateT)
 import Control.Monad.State.Class (MonadState, modify)
@@ -46,12 +46,16 @@ import Data.ByteString.Char8 (ByteString)
 import Data.IORef
 import Data.Word (Word8)
 
-import Foreign (allocaArray)
-import Foreign.C.Types (CInt(..))
+import Foreign (allocaArray, allocaBytes)
+import Foreign.C.Types -- (CInt(..))
 import Foreign.Ptr (Ptr, castPtr)
 
 import System.IO
 import Text.Printf (hPrintf)
+import Graphics.Vty.Input.BindReader
+import System.Win32.Types (DWORD, withHandleToHANDLE)
+import Data.Maybe (catMaybes, mapMaybe)
+import Data.ByteString.UTF8
 
 data Input = Input
     { -- | Channel of events direct from input processing. Unlike
@@ -75,7 +79,8 @@ data Input = Input
 makeLenses ''Input
 
 data InputBuffer = InputBuffer
-    { _ptr :: Ptr Word8
+    { _ptrEvent :: Ptr ()
+    , _ptrNum :: Ptr DWORD
     , _size :: Int
     }
 
@@ -133,21 +138,20 @@ readFromDevice = do
         logMsg $ "new config: " ++ show newConfig
         liftIO $ applyConfig fd newConfig
         appliedConfig .= newConfig
-    bufferPtr <- use $ inputBuffer.ptr
+    bufferPtr <- use $ inputBuffer.ptrEvent
+    numPtr <- use  $ inputBuffer.ptrNum
     maxBytes  <- use $ inputBuffer.size
     stringRep <- liftIO $ do
-        -- The killThread used in shutdownInput will not interrupt the
-        -- foreign call fdReadBuf uses this provides a location to be
-        -- interrupted prior to the foreign call. If there is input on
-        -- the FD then the fdReadBuf will return in a finite amount of
-        -- time due to the vtime terminal setting.
-        
-        hWaitForInput fd 100 -- do we need that? 100 is default vtime; what to do with return value? maybe replace with vtime?
-        bytesRead <- hGetBufNonBlocking fd bufferPtr (fromIntegral maxBytes) -- requires ghc >= 9.4.2
-        if bytesRead > 0
-        then BS.packCStringLen (castPtr bufferPtr, fromIntegral bytesRead)
-        else pure $ BS.pack [26] -- hWaitForInput says there is input avaialable, but no bytes read => received \EOF
-    when (not $ BS.null stringRep) $
+        {-
+            One HANDLE allocation per read, we can do better
+        -}
+
+        evs <- withHandleToHANDLE fd $ \wh -> do
+            evsH <- readEvents wh bufferPtr numPtr
+            pure $ mapMaybe usefulEvent evsH
+        pure $ fromString evs
+
+    unless (BS.null stringRep) $
         logMsg $ "input bytes: " ++ show (BS8.unpack stringRep)
     return stringRep
 
@@ -190,13 +194,17 @@ dropInvalid = do
 
 runInputProcessorLoop :: ClassifyMap -> Input -> IO ()
 runInputProcessorLoop classifyTable input = do
-    let bufferSize = 1024
-    allocaArray bufferSize $ \(bufferPtr :: Ptr Word8) -> do
-        s0 <- InputState BS8.empty ClassifierStart
-                <$> readIORef (_configRef input)
-                <*> pure (InputBuffer bufferPtr bufferSize)
-                <*> pure (classify classifyTable)
-        runReaderT (evalStateT loopInputProcessor s0) input
+    let eventCount = 1024
+    let bufferSize = eventCount * irSize
+    -- we will need to write logic for the case when we receive more that 1024 events at once
+    -- maybe allocate temporary buffer in the eventReader an its friends?
+    allocaArray bufferSize $ \(bufferPtr :: Ptr ()) -> do
+        allocaBytes dwordSize $ \(nPtr :: Ptr DWORD) -> do
+            s0 <- InputState BS8.empty ClassifierStart
+                    <$> readIORef (_configRef input)
+                    <*> pure (InputBuffer bufferPtr nPtr bufferSize)
+                    <*> pure (classify classifyTable)
+            runReaderT (evalStateT loopInputProcessor s0) input
 
 logInitialInputState :: Input -> ClassifyMap -> IO()
 logInitialInputState input classifyTable = case _inputDebug input of
