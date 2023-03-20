@@ -146,7 +146,7 @@ readFromDevice = do
         bytesRead <- hGetBufNonBlocking fd bufferPtr (fromIntegral maxBytes) -- requires ghc >= 9.4.2
         if bytesRead > 0
         then BS.packCStringLen (castPtr bufferPtr, fromIntegral bytesRead)
-        else return BS.empty
+        else pure $ BS.pack [26] -- hWaitForInput says there is input avaialable, but no bytes read => received \EOF
     when (not $ BS.null stringRep) $
         logMsg $ "input bytes: " ++ show (BS8.unpack stringRep)
     return stringRep

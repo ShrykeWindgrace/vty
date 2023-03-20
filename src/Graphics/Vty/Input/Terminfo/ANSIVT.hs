@@ -78,6 +78,7 @@ functionKeys2 :: ClassifyMap
 functionKeys2 = [ ('\ESC':[x],EvKey (KChar x) [MMeta])
                   | x <- '\t':[' ' .. '~']
                   , x /= '['
+                  , x /= 'z'
                   ]
 
 classifyTable :: [ClassifyMap]

@@ -80,12 +80,15 @@ visibleChars = [ ([x], EvKey (KChar x) [])
 -- translated to ctrl + char.
 --
 -- This treats CTRL-i the same as tab.
+
+-- windows: we should treat \r as Enter!
 ctrlChars :: ClassifyMap
 ctrlChars =
     [ ([toEnum x],EvKey (KChar y) [MCtrl])
     | (x,y) <- zip [0..31] ('@':['a'..'z']++['['..'_'])
     , y /= 'i'  -- Resolve issue #3 where CTRL-i hides TAB.
     , y /= 'h'  -- CTRL-h should not hide BS
+    , y /= 'm'
     ]
 
 -- | Ctrl+Meta+Char
@@ -105,6 +108,10 @@ specialSupportKeys =
     , ("\ESC\^J",EvKey KEnter [MMeta]), ("\^J",EvKey KEnter [])
     -- explicit support for tab
     , ("\t", EvKey (KChar '\t') [])
+    -- special support for \r as Enter
+    , ("\r", EvKey KEnter [])
+    -- special hack for \ESCz as Ctrl+z (default is Meta+z)
+    --, ("\ESCz", EvKey (KChar 'z') [MCtrl])
     ]
 
 -- | A classification table directly generated from terminfo cap
