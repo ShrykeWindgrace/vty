@@ -38,12 +38,11 @@ import Data.Word
 import Data.Foldable (foldMap)
 #endif
 
-import Foreign.C.Types ( CInt(..), CLong(..) )
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, plusPtr)
-import System.IO (Handle, hPutBuf, hPutBufNonBlocking, hPutStr, stderr, hPutStrLn, hFlush)
+import System.IO (Handle, hPutBufNonBlocking)
 import System.Win32.Types (withHandleToHANDLE)
-import System.Win32.Console (getConsoleScreenBufferInfo, CONSOLE_SCREEN_BUFFER_INFO (srWindow), SMALL_RECT (SMALL_RECT), getConsoleMode, eNABLE_MOUSE_INPUT, setConsoleMode)
+import System.Win32.Console (getConsoleScreenBufferInfo, CONSOLE_SCREEN_BUFFER_INFO (srWindow), SMALL_RECT (SMALL_RECT))
 --import Debug.Error
 
 data TerminfoCaps = TerminfoCaps

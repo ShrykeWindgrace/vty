@@ -111,7 +111,7 @@ assertEventsFromSynInput table inputSpec expectedEvents = do
     let maxDuration = sum [t | Delay t <- inputSpec] + minDetectableDelay
         eventCount = length expectedEvents
     (writeFd, readFd) <- openPseudoTerminal
-    (setTermAttr,_) <- attributeControl readFd
+    (setTermAttr,_) <- attributeControl readFd writeFd
     setTermAttr
     let testConfig = defaultConfig { inputFd = Just readFd
                                    , termName = Just "dummy"

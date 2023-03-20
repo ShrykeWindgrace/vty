@@ -134,6 +134,8 @@ import System.IO (Handle)
 import System.Win32.Console
 import System.Win32.Types
 import Data.Bits
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 #if !MIN_VERSION_base(4,11,0)
 import Data.Monoid ((<>))
 #endif
@@ -150,12 +152,13 @@ import Data.Monoid ((<>))
 inputForConfig :: Config -> IO Input
 inputForConfig config@Config{ termName = Just termName
                             , inputFd = Just termFd
+                            , outputFd = Just outFd
                             , vmin = Just _
                             , vtime = Just _
                             , .. } = do
     let inputOverrides = [(s,e) | (t,s,e) <- inputMap, t == Nothing || t == Just termName]
         activeInputMap = classifyMapForTerm termName {- terminal -} `mappend` inputOverrides
-    (setAttrs, unsetAttrs) <- attributeControl termFd
+    (setAttrs, unsetAttrs) <- attributeControl termFd outFd
     setAttrs
     input <- initInput config activeInputMap
     {-
@@ -214,12 +217,21 @@ inputForConfig config = (<> config) <$> standardIOConfig >>= inputForConfig
 -- I have my doubts about ENABLE_PROCESSED_INPUT, I am inclined to leave it disabled
 -- to my understanding, this function is only called on stdin, hence we might need to tweak stdout's flags
 --   in a separate function
-attributeControl :: Handle -> IO (IO (), IO ())
-attributeControl fd =
-    withHandleToHANDLE fd $ \wh -> do
+attributeControl :: Handle -> Handle -> IO (IO (), IO ())
+attributeControl infd outfd =
+    withHandleToHANDLE infd $ \wh -> do
         mode <- getConsoleMode wh
-        pure (setConsoleMode wh $ eNABLE_MOUSE_INPUT .|. eNABLE_EXTENDED_FLAGS .|. eNABLE_VIRTUAL_TERMINAL_INPUT,
-             setConsoleMode wh mode)
+        let nOT_RAW_MODE_MASK = eNABLE_LINE_INPUT .|. eNABLE_ECHO_INPUT .|. eNABLE_PROCESSED_INPUT
+        
+        pure (
+            -- setConsoleMode wh $ mode .&. complement nOT_RAW_MODE_MASK,
+            do
+                setConsoleMode wh $ (eNABLE_MOUSE_INPUT .|. eNABLE_EXTENDED_FLAGS .|. eNABLE_VIRTUAL_TERMINAL_INPUT .|. eNABLE_WINDOW_INPUT) .&. complement nOT_RAW_MODE_MASK -- .|. eNABLE_PROCESSED_INPUT,
+                BS.hPut outfd $ BS8.pack "\ESC[?1004h\ESC[?1003l\ESC[?1002h" -- +focus, -mouse_any, +mouse_btn
+            , do
+                setConsoleMode wh mode
+                BS.hPut outfd $ BS8.pack "\ESC[?1004l\ESC[?1003h\ESC[?1002l" -- -focus, +mouse_any, -mouse_btn
+            )
     {- original <- getTerminalAttributes fd
     let vtyMode = foldl withMode clearedFlags flagsToSet
         clearedFlags = foldl withoutMode original flagsToUnset
