@@ -110,6 +110,7 @@ peekEvent pRecord = do
 -- that requires more refactoring
 usefulEvent :: InputEvent -> Maybe Char
 usefulEvent (KeyEvent {..})
-    | keyDown && unicodeChar /= '\NUL' && controlKeyState == 0 = Just unicodeChar
+    | keyDown && unicodeChar == '\NUL' = Nothing
+    | keyDown && unicodeChar /= '\NUL' = Just unicodeChar
     | otherwise = Nothing
 usefulEvent _ = Nothing -- for now, let it compile

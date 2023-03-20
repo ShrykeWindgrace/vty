@@ -147,7 +147,7 @@ readFromDevice = do
         -}
 
         evs <- withHandleToHANDLE fd $ \wh -> do
-            evsH <- readEvents wh bufferPtr numPtr
+            evsH <- eventReader wh bufferPtr numPtr
             pure $ mapMaybe usefulEvent evsH
         pure $ fromString evs
 
