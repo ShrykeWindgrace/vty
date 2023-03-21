@@ -54,10 +54,59 @@ universalTable :: ClassifyMap
 universalTable = concat [visibleChars, ctrlChars, ctrlMetaChars, specialSupportKeys]
 
 capsClassifyMap :: [(String,Event)] -> ClassifyMap
-capsClassifyMap table = []
+capsClassifyMap _ = [
     -- I simpy do not know what these functions do
     -- todo:fixme  [(x,y) | (Just x,y) <- map extractCap table]
     -- where extractCap = first (getCapability terminal . tiGetStr)
+-- pulled directly from https://learn.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences#numpad--function-keys
+        ("\ESCOP", EvKey (KFun 1) []),
+        ("\ESCOQ", EvKey (KFun 2) []),
+        ("\ESCOR", EvKey (KFun 3) []),
+        ("\ESCOS", EvKey (KFun 4) []),
+        ("\ESC[15~", EvKey (KFun 5) []),
+        ("\ESC[17~", EvKey (KFun 6) []),
+        ("\ESC[18~", EvKey (KFun 7) []),
+        ("\ESC[19~", EvKey (KFun 8) []),
+        ("\ESC[20~", EvKey (KFun 9) []),
+        ("\ESC[21~", EvKey (KFun 10) []),
+        ("\ESC[23~", EvKey (KFun 11) []), -- in default  WT this is get intercepted by "toggle fullscreen"
+        ("\ESC[24~", EvKey (KFun 12) [])
+    ] -- now for personal experiments
+    <>
+    (merger <$> conhostModifiers <*> conhostFnBase)
+
+-- We have both Meta and Alt in the modifier
+-- had to pick one, went with MEta for consistency
+conhostModifiers :: [(String, [Modifier])]
+conhostModifiers = [
+    (";2", [MShift]),
+    (";3", [MMeta]),
+    (";4", [MMeta, MShift]),
+    (";5", [MCtrl]),
+    (";6", [MCtrl, MShift]),
+    (";7", [MMeta, MCtrl]),
+    (";8", [MMeta, MCtrl, MShift])
+    -- I do not know whether ";1" is used
+    ]
+
+conhostFnBase :: [((String, String), Int)]
+conhostFnBase = [
+        (("\ESC[1","P"),  1),
+        (("\ESC[1","Q"),  2),
+        (("\ESC[1","R"),  3),
+        (("\ESC[1","S"),  4),
+        (("\ESC[15","~"), 5),
+        (("\ESC[17","~"), 6),
+        (("\ESC[18","~"), 7),
+        (("\ESC[19","~"), 8),
+        (("\ESC[20","~"), 9),
+        (("\ESC[21","~"), 10),
+        (("\ESC[23","~"), 11),
+        (("\ESC[24","~"), 12)
+    ]
+merger :: (String, [Modifier]) -> ((String, String), Int) -> (String, Event)
+merger (infx, mods) ((prefix, suffix), btn) = (prefix <> infx <> suffix, EvKey (KFun btn) mods)
+
 
 -- | Tables specific to a given terminal that are not derivable from
 -- terminfo.

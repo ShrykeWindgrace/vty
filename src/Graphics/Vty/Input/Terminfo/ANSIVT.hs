@@ -87,6 +87,6 @@ classifyTable =
     , navKeys1
     , navKeys2
     , navKeys3
-    , functionKeys1
+    -- , functionKeys1
     , functionKeys2
     ]
